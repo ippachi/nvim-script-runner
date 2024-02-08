@@ -12,8 +12,8 @@ end
 
 function TestRunner:new(opts)
 	local o = opts or {}
-	o.output_bufnr = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_set_option_value("filetype", "markdown", { buf = o.output_bufnr })
+	self.runner_bufnr = vim.api.nvim_create_buf(false, true)
+	self.runner_channel_id = vim.api.nvim_open_term(self.runner_bufnr, {})
 	setmetatable(o, self)
 	self.__index = self
 	return o
@@ -55,34 +55,49 @@ function TestRunner:run_last()
 end
 
 function TestRunner:open_output()
-	vim.api.nvim_command("buffer " .. self.output_bufnr)
+	vim.api.nvim_command("buffer " .. self.runner_bufnr)
 end
 
 function TestRunner:_start_test_job(test_command)
 	self:_start_progress(test_command)
-	self:_append_to_test_output_new_line({
-		"--------------------------------",
-		"**" .. test_command .. "**",
-		"```",
-	})
-	vim.fn.jobstart(test_command, {
-		stdout_buffered = true,
-		stderr_buffered = true,
-		on_stdout = function(_, data, _)
-			self:_append_to_test_output_new_line(data)
+
+	local temp_file_path = os.tmpname()
+	local file = io.open(temp_file_path, "w")
+	file:write(test_command)
+	file:close()
+
+	vim.api.nvim_chan_send(
+		self.runner_channel_id,
+		"---------------------------------\n"
+			.. vim.system({ "tput", "bold" }):wait().stdout
+			.. vim.system({ "tput", "setaf", "5" }):wait().stdout
+			.. test_command
+			.. vim.system({ "tput", "sgr0" }):wait().stdout
+			.. "\n"
+	)
+	vim.system({ "script", "-q", "/dev/null", "sh", temp_file_path }, {
+		text = false,
+		stdout = function(err, data)
+			if data ~= nil then
+				vim.schedule(function()
+					vim.api.nvim_chan_send(self.runner_channel_id, data)
+				end)
+			end
 		end,
-		on_stderr = function(_, data, _)
-			self:_append_to_test_output_new_line(data)
+		stderr = function(err, data)
+			if data ~= nil then
+				vim.schedule(function()
+					vim.api.nvim_chan_send(self.runner_channel_id, data)
+				end)
+			end
 		end,
-		on_exit = function(_, code, _)
-			self:_append_to_test_output_new_line({
-				"```",
-				"",
-			})
-			self.fidget_handle:finish()
-			self:_notify_result(code)
-		end,
-	})
+	}, function(result)
+		os.remove(temp_file_path)
+		self.fidget_handle:finish()
+		vim.schedule(function()
+			self:_notify_result(result.code)
+		end)
+	end)
 end
 
 function TestRunner:_test_command(test_command_number)
