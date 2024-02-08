@@ -5,7 +5,7 @@ local TestRunner = {}
 local function table_keys(t)
 	local keys = {}
 	for k, _ in pairs(t) do
-		table.insert(keys, 1, k)
+		table.insert(keys, k)
 	end
 	return keys
 end
@@ -20,21 +20,11 @@ function TestRunner:new(opts)
 end
 
 function TestRunner:set_test_command_functions()
-	local ft_test_command_functions = self.command_functions_by_ft[vim.bo.filetype]
-
-	local ft_test_command_keys = table_keys(ft_test_command_functions)
-	if #ft_test_command_keys == 0 then
-		return
-	end
-	if #ft_test_command_keys == 1 then
-		self.test_command_functions = ft_test_command_functions[ft_test_command_keys[1]]
-	else
-		vim.ui.select(ft_test_command_keys, {
-			prompt = "Select test command:",
-		}, function(choise)
-			self.test_command_functions = ft_test_command_functions[choise]
-		end)
-	end
+	vim.ui.select(table_keys(self.settings), {
+		prompt = "Select test command:",
+	}, function(choise)
+		self.test_command_functions = self.settings[choise]
+	end)
 end
 
 function TestRunner:run_test(text_command_number)
