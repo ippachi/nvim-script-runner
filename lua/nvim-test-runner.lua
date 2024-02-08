@@ -19,25 +19,30 @@ function TestRunner:new(opts)
 	return o
 end
 
-function TestRunner:set_test_command_functions()
+function TestRunner:set_setting(cb)
 	vim.ui.select(table_keys(self.settings), {
 		prompt = "Select test command:",
 	}, function(choise)
-		self.test_command_functions = self.settings[choise]
+		self.setting = self.settings[choise]
+		if cb then
+			cb()
+		end
 	end)
 end
 
-function TestRunner:run_test(text_command_number)
-	if not self.test_command_functions then
-		self:set_test_command_functions()
-	end
+function TestRunner:run_test(test_command_number)
+	if not self.setting then
+		self:set_setting(function()
+			if not self.setting then
+				vim.notify("No test command found", vim.log.levels.ERROR, {})
+				return
+			end
 
-	if not self.test_command_functions then
-		vim.notify("No test command found for filetype: " .. vim.bo.filetype, vim.log.levels.ERROR, {})
-		return
+			self:_start_test_job(self:_test_command(test_command_number))
+		end)
+	else
+		self:_start_test_job(self:_test_command(test_command_number))
 	end
-
-	self:_start_test_job(self:_test_command(text_command_number))
 end
 
 function TestRunner:run_last()
@@ -81,7 +86,7 @@ function TestRunner:_start_test_job(test_command)
 end
 
 function TestRunner:_test_command(test_command_number)
-	local result = self.test_command_functions[test_command_number]()
+	local result = self.setting[test_command_number]()
 	self.last_test_command = result
 	return result
 end
@@ -125,10 +130,10 @@ function M.setup(opts)
 				test_runner:open_output()
 			end
 		end,
-		set_test_command_functions = function()
+		set_setting = function()
 			test_runner = test_runner or TestRunner:new(opts)
 			if test_runner then
-				test_runner:set_test_command_functions()
+				test_runner:set_setting()
 			end
 		end,
 	}
