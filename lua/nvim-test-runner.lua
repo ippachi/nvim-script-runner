@@ -38,11 +38,16 @@ function TestRunner:run_test(test_command_number)
 				return
 			end
 
-			self:_start_test_job(self:_test_command(test_command_number))
+      self:run(self:_test_command(test_command_number))
 		end)
 	else
-		self:_start_test_job(self:_test_command(test_command_number))
+    self:run(self:_test_command(test_command_number))
 	end
+end
+
+function TestRunner:run(command)
+	self.last_test_command = command
+  self:_start_test_job(command)
 end
 
 function TestRunner:run_last()
@@ -101,9 +106,7 @@ function TestRunner:_start_test_job(test_command)
 end
 
 function TestRunner:_test_command(test_command_number)
-	local result = self.setting[test_command_number]()
-	self.last_test_command = result
-	return result
+	return self.setting[test_command_number]()
 end
 
 function TestRunner:_append_to_test_output_new_line(data)
@@ -131,6 +134,10 @@ local test_runner = nil
 
 function M.setup(opts)
 	return {
+		run = function(command)
+			test_runner = test_runner or TestRunner:new(opts)
+			test_runner:run(command)
+		end,
 		run_test = function(test_command_number)
 			test_runner = test_runner or TestRunner:new(opts)
 			test_runner:run_test(test_command_number)
