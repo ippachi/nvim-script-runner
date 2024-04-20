@@ -64,45 +64,7 @@ function ScriptRunner:open_output()
 end
 
 function ScriptRunner:_start_job(command)
-	self:_start_progress(command)
-
-	local temp_file_path = os.tmpname()
-	local file = io.open(temp_file_path, "w")
-	file:write(command)
-	file:close()
-
-	vim.api.nvim_chan_send(
-		self.runner_channel_id,
-		"---------------------------------\n"
-			.. vim.system({ "tput", "bold" }):wait().stdout
-			.. vim.system({ "tput", "setaf", "5" }):wait().stdout
-			.. command
-			.. vim.system({ "tput", "sgr0" }):wait().stdout
-			.. "\n"
-	)
-	vim.system({ "script", "-q", "/dev/null", "sh", temp_file_path }, {
-		text = false,
-		stdout = function(err, data)
-			if data ~= nil then
-				vim.schedule(function()
-					vim.api.nvim_chan_send(self.runner_channel_id, data)
-				end)
-			end
-		end,
-		stderr = function(err, data)
-			if data ~= nil then
-				vim.schedule(function()
-					vim.api.nvim_chan_send(self.runner_channel_id, data)
-				end)
-			end
-		end,
-	}, function(result)
-		os.remove(temp_file_path)
-		self.fidget_handle:finish()
-		vim.schedule(function()
-			self:_notify_result(result.code)
-		end)
-	end)
+  vim.cmd(string.format("TermExec cmd='%s'", command))
 end
 
 function ScriptRunner:_command_from_preset(preset_command_number)
@@ -115,12 +77,6 @@ function ScriptRunner:_notify_result(code)
 	else
 		vim.notify("Failed❌", vim.log.levels.ERROR, {})
 	end
-end
-
-function ScriptRunner:_start_progress(title)
-	self.fidget_handle = progress.handle.create({
-		title = title,
-	})
 end
 
 local script_runner = nil
